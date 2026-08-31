@@ -13,7 +13,7 @@ addon_info = {
 		"Expect oddities, and please report anything that behaves strangely."
 	),
 	"addon_version": "1.0",
-	"addon_author": "tunmi13 productions <tunmijubril12@gmail.com>",
+	"addon_author": "tunmi13 productions <tunmi12@mail.com>",
 	"addon_url": "https://github.com/tunmi13productions/cedar",
 	"addon_docFileName": "readme.html",
 	"addon_minimumNVDAVersion": "2024.1",

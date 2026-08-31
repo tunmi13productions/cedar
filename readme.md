@@ -10,13 +10,13 @@ This add-on was vibe coded with Claude Opus 5, Anthropic's AI model. It works, a
 
 Cedar sits directly in the path of NVDA's speech audio. If it ever goes wrong badly enough that you cannot hear NVDA, delete the cedar folder from your NVDA add-ons directory and restart NVDA.
 
-## Requirements
+## Download
 
-NVDA 2024.1 or later. Cedar is tested on NVDA 2025.3.
+https://github.com/tunmi13productions/cedar/releases/latest/download/cedar.nvda-addon
 
-## Installing
+That link always gives you the newest build. Press enter on the downloaded file to install it, and restart NVDA when prompted.
 
-Download the latest cedar.nvda-addon from the releases page and press enter on it. Restart NVDA when prompted.
+Cedar needs NVDA 2024.1 or later. It is tested on NVDA 2025.3.
 
 ## Using Cedar
 
@@ -44,8 +44,8 @@ The presets were tuned by frequency reasoning rather than by ear against real vo
 Tick Enable advanced settings and the Advanced settings button becomes available. The advanced dialog gives you:
 - A Band list covering five bands: Bass and Treble are shelves, Low mid, Mids and Presence are peaking filters.
 - Gain as a slider, Frequency as a spin control you can type into, and Width or slope as a named list running from very wide to extremely narrow, so you can put a band exactly where a particular voice needs it.
-- Remove low frequency rumble, a high pass filter for synthesizers with a heavy low end.
-- Remove high frequency hiss, a low pass filter for synthesizers with a harsh or noisy top end.
+- Remove low frequency rumble, for synthesizers with a heavy low end.
+- Remove high frequency hiss, for synthesizers with a harsh or noisy top end.
 - Soften loud peaks instead of clipping them, which rounds off peaks that would otherwise distort.
 - Also equalize NVDA sounds and beeps, which extends the equalizer beyond speech.
 
@@ -55,33 +55,16 @@ Cedar adds commands for toggling the equalizer, cycling presets, nudging bass, m
 
 ## Which synthesizers work
 
-Cedar filters audio on its way from the synthesizer to your sound card, at the point NVDA hands it over. Every synthesizer that plays through NVDA works, which includes eSpeak NG, Windows OneCore, SAPI 4, SAPI 5, and most add-on synthesizers.
+Every synthesizer that plays its audio through NVDA works, which includes eSpeak NG, Windows OneCore, SAPI 4, SAPI 5, and most add-on synthesizers.
 
-A synthesizer that talks to the sound card itself, rather than handing its audio to NVDA, bypasses Cedar entirely. If a voice sounds unchanged no matter what you do to the sliders, that is why. Cedar also leaves 8 bit and 32 bit audio alone and only processes the 16 bit audio that synthesizers normally produce.
-
-## Performance
-
-Filtering is done in Python, and on a typical voice at 22050 Hz it costs about two percent of one processor core with three bands active. When every gain is at zero Cedar detects that the settings are flat and steps out of the audio path completely, so a disabled or flat equalizer costs nothing at all.
-
-## How it works
-
-NVDA hands every synthesizer's audio to nvwave.WavePlayer.feed on its way to the sound card. Cedar wraps that method, and filters the 16 bit audio through a cascade of biquad filters built from the RBJ audio EQ cookbook formulas. The WavePlayer knows whether a stream is speech or one of NVDA's own sounds, which is how Cedar leaves beeps alone unless you ask otherwise.
+A synthesizer that talks to the sound card itself, rather than handing its audio to NVDA, bypasses Cedar entirely. If a voice sounds unchanged no matter what you do to the sliders, that is why.
 
 ## Building from source
 
 Requires Python 3.11 or later. No other packages are needed.
-- py build.py builds the nvda-addon file, generating the manifest and readme.html along the way.
-- py build.py --scratchpad copies the plugin straight into NVDA's scratchpad, for testing without reinstalling. Enable the scratchpad first under NVDA menu, Preferences, Settings, Advanced, then reload plugins with NVDA+control+F3.
-- py build.py --clean removes the build output.
-- py tests/test_cedar.py runs the test suite against stubbed NVDA modules, so it works outside NVDA.
-
-## Releases
-
-Pushing a tag of the form v1.0 builds the add-on and publishes it. Each version keeps its own release, and a moving latest tag always carries the newest build under a fixed name, so this link never changes:
-
-https://github.com/tunmi13productions/cedar/releases/latest/download/cedar.nvda-addon
-
-The tag has to match addon_version in buildVars.py or the build fails on purpose.
+- py build.py builds the add-on file.
+- py build.py --scratchpad copies the plugin into NVDA's scratchpad for testing, then reload plugins with NVDA+control+F3.
+- py tests/test_cedar.py runs the tests.
 
 ## License
 

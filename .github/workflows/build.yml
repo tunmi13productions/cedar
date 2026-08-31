@@ -10,6 +10,9 @@ on:
 permissions:
   contents: write
 
+env:
+  REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -50,9 +53,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${GITHUB_REF_NAME#v}"
+          cat > notes.md <<EOF
+          Download Cedar $version: $REPO_URL/releases/download/$GITHUB_REF_NAME/cedar-$version.nvda-addon
+
+          Press enter on the downloaded file to install it, then restart NVDA when prompted.
+          EOF
+          # Deleted first so re-pushing a tag rebuilds instead of failing on an existing release.
+          gh release delete "$GITHUB_REF_NAME" --yes || true
           gh release create "$GITHUB_REF_NAME" \
             --title "Cedar $version" \
-            --generate-notes \
+            --notes-file notes.md \
             "cedar-$version.nvda-addon" "cedar.nvda-addon"
 
       - name: Move the latest release
@@ -61,10 +71,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${GITHUB_REF_NAME#v}"
+          cat > latest-notes.md <<EOF
+          Download Cedar: $REPO_URL/releases/latest/download/cedar.nvda-addon
+
+          Press enter on the downloaded file to install it, then restart NVDA when prompted.
+
+          This is Cedar $version. The link above always points at the newest build, so it never has to change.
+          EOF
           # Recreated rather than edited, so the latest tag follows the newest commit.
           gh release delete latest --yes --cleanup-tag || true
           gh release create latest \
             --target "$GITHUB_SHA" \
             --title "Latest build" \
-            --notes "Cedar $version, from tag $GITHUB_REF_NAME. This release always carries the newest build, so the download link below never changes." \
+            --notes-file latest-notes.md \
             cedar.nvda-addon
