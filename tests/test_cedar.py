@@ -28,6 +28,24 @@ def sine(freq, n, amp=6000.0, fs=FS, channels=1):
 	return buf.tobytes()
 
 
+_CALL_SOURCE = """
+def call(player, args):
+	player.feed(*args)
+"""
+
+
+def feedFrom(moduleName, player, *args):
+	"""Feed from a frame belonging to moduleName, which is how the hook tells speech apart."""
+	namespace = {"__name__": moduleName}
+	exec(_CALL_SOURCE, namespace)
+	namespace["call"](player, args)
+
+
+def speak(player, *args):
+	"""Feed the way a synth driver does."""
+	feedFrom("synthDrivers.fake", player, *args)
+
+
 def peak(data):
 	buf = array("h")
 	buf.frombytes(data)
@@ -174,7 +192,7 @@ class TestAudioHook(CedarTestCase):
 	def test_flat_audio_is_untouched(self):
 		player = self._player()
 		data = sine(400, 2000)
-		player.feed(data)
+		speak(player, data)
 		self.assertEqual(player.fed[0], data)
 
 	def test_speech_is_filtered_and_matches_a_direct_run(self):
@@ -182,7 +200,7 @@ class TestAudioHook(CedarTestCase):
 		engine.equalizer.invalidate()
 		player = self._player()
 		data = sine(80, 4000)
-		player.feed(data)
+		speak(player, data)
 		cascade = engine.equalizer.getCascade(FS)
 		expected = dsp.process(cascade, data, 1, cascade.newState(1))
 		self.assertEqual(player.fed[0], expected)
@@ -193,7 +211,7 @@ class TestAudioHook(CedarTestCase):
 		engine.equalizer.invalidate()
 		player = self._player(purpose=nvwave.AudioPurpose.SOUNDS)
 		data = sine(80, 2000)
-		player.feed(data)
+		speak(player, data)
 		self.assertEqual(player.fed[0], data)
 
 	def test_sounds_are_filtered_when_the_user_asks(self):
@@ -202,7 +220,7 @@ class TestAudioHook(CedarTestCase):
 		engine.equalizer.invalidate()
 		player = self._player(purpose=nvwave.AudioPurpose.SOUNDS)
 		data = sine(80, 2000)
-		player.feed(data)
+		speak(player, data)
 		self.assertNotEqual(player.fed[0], data)
 
 	def test_non_16_bit_audio_passes_through(self):
@@ -210,7 +228,7 @@ class TestAudioHook(CedarTestCase):
 		engine.equalizer.invalidate()
 		player = self._player(bitsPerSample=32)
 		data = sine(80, 2000)
-		player.feed(data)
+		speak(player, data)
 		self.assertEqual(player.fed[0], data)
 
 	def test_ctypes_pointer_input_is_handled(self):
@@ -219,9 +237,9 @@ class TestAudioHook(CedarTestCase):
 		data = sine(80, 2000)
 		buf = ctypes.create_string_buffer(data, len(data))
 		byPointer = self._player()
-		byPointer.feed(ctypes.cast(buf, ctypes.c_void_p), len(data))
+		speak(byPointer, ctypes.cast(buf, ctypes.c_void_p), len(data))
 		byBytes = self._player()
-		byBytes.feed(data)
+		speak(byBytes, data)
 		self.assertEqual(byPointer.fed[0], byBytes.fed[0])
 
 	def test_filtering_is_continuous_across_chunks(self):
@@ -229,10 +247,10 @@ class TestAudioHook(CedarTestCase):
 		engine.equalizer.invalidate()
 		data = sine(300, 4000)
 		whole = self._player()
-		whole.feed(data)
+		speak(whole, data)
 		chunked = self._player()
 		for start in range(0, 4000, 512):
-			chunked.feed(data[start * 2:(start + 512) * 2])
+			speak(chunked, data[start * 2:(start + 512) * 2])
 		self.assertEqual(b"".join(chunked.fed), whole.fed[0])
 
 	def test_stop_clears_the_filter_tail(self):
@@ -240,11 +258,11 @@ class TestAudioHook(CedarTestCase):
 		engine.equalizer.invalidate()
 		data = sine(300, 1024)
 		first = self._player()
-		first.feed(data)
+		speak(first, data)
 		first.stop()
-		first.feed(data)
+		speak(first, data)
 		fresh = self._player()
-		fresh.feed(data)
+		speak(fresh, data)
 		self.assertEqual(first.fed[1], fresh.fed[0])
 
 	def test_stereo_is_filtered_per_channel(self):
@@ -252,7 +270,7 @@ class TestAudioHook(CedarTestCase):
 		engine.equalizer.invalidate()
 		player = self._player(channels=2, samplesPerSec=48000)
 		data = sine(6000, 2000, fs=48000, channels=2)
-		player.feed(data)
+		speak(player, data)
 		out = array("h")
 		out.frombytes(player.fed[0])
 		self.assertEqual(list(out[0::2]), list(out[1::2]))
@@ -264,7 +282,7 @@ class TestAudioHook(CedarTestCase):
 		conf()["autoGain"] = False
 		engine.equalizer.invalidate()
 		player = self._player()
-		player.feed(sine(200, 4000, amp=30000.0))
+		speak(player, sine(200, 4000, amp=30000.0))
 		self.assertLessEqual(peak(player.fed[0]), 32767)
 
 	def test_a_failing_cascade_still_plays_audio(self):
@@ -275,7 +293,7 @@ class TestAudioHook(CedarTestCase):
 		try:
 			player = self._player()
 			data = sine(400, 1000)
-			player.feed(data)
+			speak(player, data)
 		finally:
 			dsp.process = original
 		self.assertEqual(player.fed[0], data)
@@ -285,13 +303,13 @@ class TestAudioHook(CedarTestCase):
 		engine.equalizer.invalidate()
 		data = sine(80, 2000)
 		reference = self._player()
-		reference.feed(data)
+		speak(reference, data)
 		# NVDA reloading plugins re-imports the module while its hook is still installed.
 		audiohook._originalFeed = None
 		audiohook._originalStop = None
 		audiohook.patch()
 		player = self._player()
-		player.feed(data)
+		speak(player, data)
 		self.assertEqual(player.fed[0], reference.fed[0])
 
 	def test_unpatch_leaves_another_addons_wrapper_alone(self):
@@ -308,6 +326,61 @@ class TestAudioHook(CedarTestCase):
 			self.assertIs(nvwave.WavePlayer.feed, theirFeed)
 		finally:
 			nvwave.WavePlayer.feed = ourFeed
+
+	def test_a_sound_add_on_calling_itself_speech_is_left_alone(self):
+		"""WavePlayer defaults purpose to SPEECH, and add-ons that make sounds rarely override it."""
+		conf()["lowGain"] = 9.0
+		engine.equalizer.invalidate()
+		player = self._player()
+		data = sine(80, 2000)
+		feedFrom("globalPlugins.enhancedTones._tones", player, data)
+		self.assertEqual(player.fed[0], data)
+
+	def test_a_sound_add_on_is_filtered_once_sounds_are_enabled(self):
+		conf()["lowGain"] = 9.0
+		conf()["processSounds"] = True
+		engine.equalizer.invalidate()
+		player = self._player()
+		data = sine(80, 2000)
+		feedFrom("globalPlugins.enhancedTones._tones", player, data)
+		self.assertNotEqual(player.fed[0], data)
+
+	def test_an_add_on_synthesizer_counts_as_speech(self):
+		conf()["lowGain"] = 9.0
+		engine.equalizer.invalidate()
+		player = self._player()
+		data = sine(80, 2000)
+		feedFrom("synthDrivers.leopardspeech", player, data)
+		self.assertNotEqual(player.fed[0], data)
+
+	def test_a_player_owned_by_the_active_synth_counts_as_speech(self):
+		"""Covers a synth that feeds from somewhere with no synthDrivers frame on the stack."""
+		import synthDriverHandler
+
+		conf()["lowGain"] = 9.0
+		engine.equalizer.invalidate()
+		player = self._player()
+
+		class FakeSynth:
+			pass
+
+		synth = FakeSynth()
+		synth._player = player
+		synthDriverHandler.synth = synth
+		self.addCleanup(setattr, synthDriverHandler, "synth", None)
+		data = sine(80, 2000)
+		feedFrom("queueHandler", player, data)
+		self.assertNotEqual(player.fed[0], data)
+
+	def test_the_speech_decision_is_made_once_per_player(self):
+		conf()["lowGain"] = 9.0
+		engine.equalizer.invalidate()
+		player = self._player()
+		data = sine(80, 2000)
+		speak(player, data)
+		# The synth owns this player, so a later feed from elsewhere is still its speech.
+		feedFrom("queueHandler", player, data)
+		self.assertNotEqual(player.fed[1], data)
 
 	def test_patch_is_idempotent_and_reversible(self):
 		before = nvwave.WavePlayer.feed
@@ -399,9 +472,9 @@ class TestGuiContract(unittest.TestCase):
 	def test_every_labeled_control_is_one_guihelper_can_label(self):
 		import re
 
-		source = io.open(
-			os.path.join(nvda_stubs.ADDON_ROOT, "cedar", "settingsgui.py"), encoding="utf-8"
-		).read()
+		path = os.path.join(nvda_stubs.ADDON_ROOT, "cedar", "settingsgui.py")
+		with io.open(path, encoding="utf-8") as handle:
+			source = handle.read()
 		used = set(re.findall(r"addLabeledControl\(\s*[^,]+,\s*wx\.(\w+)", source))
 		self.assertTrue(used, "no labeled controls found, the check has gone stale")
 		self.assertEqual(used - self.LABELABLE, set())

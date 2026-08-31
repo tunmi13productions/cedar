@@ -1,6 +1,7 @@
 """Patches nvwave.WavePlayer so speech audio passes through the equalizer on its way to the device."""
 
 import ctypes
+import sys
 
 import nvwave
 from logHandler import log
@@ -16,6 +17,58 @@ _warnedFormats = set()
 _SPEECH_PURPOSE = getattr(getattr(nvwave, "AudioPurpose", None), "SPEECH", None)
 
 
+def _synthDriverOnStack():
+	"""True when a synth driver is somewhere in the call chain feeding this audio.
+
+	NVDA loads every synth driver, add-on ones included, into the synthDrivers package, so the
+	module name of a frame is a reliable marker of speech.
+	"""
+	frame = sys._getframe(1)
+	depth = 0
+	while frame is not None and depth < 25:
+		name = frame.f_globals.get("__name__", "")
+		if name == "synthDrivers" or name.startswith("synthDrivers."):
+			return True
+		frame = frame.f_back
+		depth += 1
+	return False
+
+
+def _belongsToActiveSynth(player):
+	"""A synth that feeds from somewhere unexpected can still be recognised by what it owns."""
+	try:
+		import synthDriverHandler
+
+		synth = synthDriverHandler.getSynth()
+	except Exception:
+		return False
+	if synth is None:
+		return False
+	try:
+		return any(value is player for value in vars(synth).values())
+	except TypeError:
+		return False
+
+
+def _isSpeech(player):
+	"""Decide once per player whether its audio is speech, and remember the answer.
+
+	WavePlayer's purpose argument defaults to SPEECH, and add-ons that produce sounds rarely pass
+	it, so a stream calling itself speech proves nothing. Only audio that a synth driver is
+	actually producing counts.
+	"""
+	decided = getattr(player, "_cedarIsSpeech", None)
+	if decided is not None:
+		return decided
+	if _SPEECH_PURPOSE is not None and getattr(player, "_purpose", None) is not _SPEECH_PURPOSE:
+		decided = False
+	else:
+		decided = _synthDriverOnStack() or _belongsToActiveSynth(player)
+	player._cedarIsSpeech = decided
+	log.debug("Cedar: %d Hz player treated as %s" % (player.samplesPerSec, "speech" if decided else "not speech"))
+	return decided
+
+
 def _cascadeFor(player):
 	"""Pick the cascade for this player, or None when its audio should be left alone."""
 	if player.bitsPerSample != 16:
@@ -24,9 +77,8 @@ def _cascadeFor(player):
 			_warnedFormats.add(key)
 			log.debug("Cedar: passing through %d bit audio, only 16 bit is filtered" % player.bitsPerSample)
 		return None
-	if _SPEECH_PURPOSE is not None and not conf()["processSounds"]:
-		if getattr(player, "_purpose", None) is not _SPEECH_PURPOSE:
-			return None
+	if not conf()["processSounds"] and not _isSpeech(player):
+		return None
 	return equalizer.getCascade(player.samplesPerSec)
 
 

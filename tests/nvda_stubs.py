@@ -110,6 +110,10 @@ def install():
 
 	nvwave = _module("nvwave", WavePlayer=FakeWavePlayer, AudioPurpose=_AudioPurpose)
 
+	synthDriverHandler = _module("synthDriverHandler")
+	synthDriverHandler.synth = None
+	synthDriverHandler.getSynth = lambda: synthDriverHandler.synth
+
 	class Conf(dict):
 		"""Materialises a section from the registered spec the first time it is asked for."""
 
