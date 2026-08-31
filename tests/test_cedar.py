@@ -463,6 +463,45 @@ class TestFilterSafety(unittest.TestCase):
 			self.assertIn(limit, engine.confspec[band.qKey], band.id)
 
 
+class TestDisplayScale(CedarTestCase):
+	def test_decibels_are_shown_as_themselves(self):
+		conf()["percentScale"] = False
+		self.assertEqual(engine.displayRange(engine.GAIN_LIMIT), (-18, 18))
+		self.assertEqual(engine.displayFromDb(3.0, engine.GAIN_LIMIT), 3)
+		self.assertEqual(engine.dbFromDisplay(-6, engine.GAIN_LIMIT), -6.0)
+
+	def test_the_plain_scale_puts_flat_in_the_middle(self):
+		conf()["percentScale"] = True
+		self.assertEqual(engine.displayRange(engine.GAIN_LIMIT), (0, 100))
+		self.assertEqual(engine.displayFromDb(0.0, engine.GAIN_LIMIT), 50)
+		self.assertEqual(engine.displayFromDb(-engine.GAIN_LIMIT, engine.GAIN_LIMIT), 0)
+		self.assertEqual(engine.displayFromDb(engine.GAIN_LIMIT, engine.GAIN_LIMIT), 100)
+		self.assertEqual(engine.dbFromDisplay(50, engine.GAIN_LIMIT), 0.0)
+
+	def test_the_plain_scale_covers_the_smaller_preamp_range(self):
+		conf()["percentScale"] = True
+		self.assertEqual(engine.displayRange(engine.PREAMP_LIMIT), (0, 100))
+		self.assertEqual(engine.displayFromDb(0.0, engine.PREAMP_LIMIT), 50)
+		self.assertEqual(engine.dbFromDisplay(100, engine.PREAMP_LIMIT), engine.PREAMP_LIMIT)
+
+	def test_a_round_trip_through_the_plain_scale_stays_close(self):
+		conf()["percentScale"] = True
+		for db in (-18.0, -9.0, -1.0, 0.0, 1.0, 9.0, 18.0):
+			shown = engine.displayFromDb(db, engine.GAIN_LIMIT)
+			self.assertAlmostEqual(engine.dbFromDisplay(shown, engine.GAIN_LIMIT), db, delta=0.2)
+
+	def test_the_scale_is_only_a_display_choice(self):
+		"""Switching scales must not disturb the stored gains, only how they read."""
+		conf()["percentScale"] = False
+		conf()["lowGain"] = 6.0
+		engine.equalizer.invalidate()
+		before = engine.equalizer.getCascade(FS).sections
+		conf()["percentScale"] = True
+		engine.equalizer.invalidate()
+		self.assertEqual(conf()["lowGain"], 6.0)
+		self.assertEqual(engine.equalizer.getCascade(FS).sections, before)
+
+
 class TestGuiContract(unittest.TestCase):
 	"""guiHelper can only pair a label with a fixed set of control types."""
 
@@ -478,7 +517,9 @@ class TestGuiContract(unittest.TestCase):
 	def test_every_labeled_control_is_one_guihelper_can_label(self):
 		import re
 
-		used = set(re.findall(r"addLabeledControl\(\s*[^,]+,\s*wx\.(\w+)", self._source()))
+		source = self._source()
+		used = set(re.findall(r"[^_]addLabeledControl\(\s*[^,]+,\s*wx\.(\w+)", source))
+		used |= set(re.findall(r"_addLabeledControl\(\s*self,\s*sHelper,\s*[^,]+,\s*wx\.(\w+)", source))
 		self.assertTrue(used, "no labeled controls found, the check has gone stale")
 		self.assertEqual(used - self.LABELABLE, set())
 

@@ -61,10 +61,35 @@ BAND_BY_ID = {b.id: b for b in BANDS}
 GAIN_LIMIT = 18.0
 PREAMP_LIMIT = 12.0
 
+
+def usesPercentScale():
+	return conf()["percentScale"]
+
+
+def displayRange(limit):
+	"""The range a level control should offer for a gain of plus or minus limit decibels."""
+	if usesPercentScale():
+		return 0, 100
+	return -int(limit), int(limit)
+
+
+def displayFromDb(db, limit):
+	"""Show a gain on the scale the user reads, where the middle of the range is flat."""
+	if not usesPercentScale():
+		return int(round(db))
+	return int(round((db + limit) / (2.0 * limit) * 100.0))
+
+
+def dbFromDisplay(value, limit):
+	if not usesPercentScale():
+		return float(value)
+	return value / 100.0 * (2.0 * limit) - limit
+
 confspec = {
 	"enabled": "boolean(default=True)",
 	"processSounds": "boolean(default=False)",
 	"advancedMode": "boolean(default=False)",
+	"percentScale": "boolean(default=False)",
 	"preamp": "float(default=0.0, min=-%s, max=%s)" % (PREAMP_LIMIT, PREAMP_LIMIT),
 	"autoGain": "boolean(default=True)",
 	"softClip": "boolean(default=True)",

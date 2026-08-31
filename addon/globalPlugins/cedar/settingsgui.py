@@ -12,7 +12,19 @@ except ImportError:
 	from gui import messageBox
 
 from . import presets
-from .engine import BANDS, GAIN_LIMIT, PREAMP_LIMIT, conf, equalizer, resetToFlat
+from .engine import (
+	BAND_BY_ID,
+	BANDS,
+	GAIN_LIMIT,
+	PREAMP_LIMIT,
+	conf,
+	dbFromDisplay,
+	displayFromDb,
+	displayRange,
+	equalizer,
+	resetToFlat,
+	usesPercentScale,
+)
 
 try:
 	addonHandler.initTranslation()
@@ -55,6 +67,21 @@ PEAK_WIDTHS = (
 )
 
 
+def _addLabeledControl(parent, sHelper, labelText, wxCtrlClass, **kwargs):
+	"""As sHelper.addLabeledControl, but hands back the label too so its text can change later."""
+	helper = guiHelper.LabeledControlHelper(parent, labelText, wxCtrlClass, **kwargs)
+	sHelper.addItem(helper.sizer)
+	return helper.control, getattr(helper, "_label", None)
+
+
+def _levelLabel(name):
+	if usesPercentScale():
+		# Translators: label of a level control when levels are shown from 0 to 100. {name} is the band name.
+		return _("{name}:").format(name=name)
+	# Translators: label of a level control when levels are shown in decibels. {name} is the band name.
+	return _("{name} (dB):").format(name=name)
+
+
 def _setSpinStep(ctrl, step):
 	"""A settable spin increment only exists in newer wxWidgets, so treat it as a bonus."""
 	try:
@@ -81,10 +108,11 @@ class AdvancedDialog(wx.Dialog):
 		self.bandChoice.SetSelection(0)
 		self.bandChoice.Bind(wx.EVT_CHOICE, self.onBandChanged)
 
-		# Translators: how much the selected band boosts or cuts, in decibels.
-		self.gainCtrl = sHelper.addLabeledControl(
-			_("&Gain (dB):"), wx.SpinCtrl,
-			min=-int(GAIN_LIMIT), max=int(GAIN_LIMIT), initial=0,
+		# Translators: how much the selected band boosts or cuts.
+		low, high = displayRange(GAIN_LIMIT)
+		self.gainCtrl, self.gainLabel = _addLabeledControl(
+			self, sHelper, _levelLabel(_("&Gain")), wx.SpinCtrl,
+			min=low, max=high, initial=0,
 		)
 		self.gainCtrl.Bind(wx.EVT_SPINCTRL, self.onBandValueChanged)
 
@@ -155,7 +183,7 @@ class AdvancedDialog(wx.Dialog):
 		c = conf()
 		self._loading = True
 		try:
-			self.gainCtrl.SetValue(int(round(c[band.gainKey])))
+			self.gainCtrl.SetValue(displayFromDb(c[band.gainKey], GAIN_LIMIT))
 			self.freqCtrl.SetRange(int(band.minFreq), int(band.maxFreq))
 			_setSpinStep(self.freqCtrl, 5 if band.maxFreq <= 1500 else 25)
 			self.freqCtrl.SetValue(int(round(c[band.freqKey])))
@@ -185,7 +213,7 @@ class AdvancedDialog(wx.Dialog):
 			return
 		band = self._currentBand()
 		c = conf()
-		c[band.gainKey] = float(self.gainCtrl.GetValue())
+		c[band.gainKey] = dbFromDisplay(self.gainCtrl.GetValue(), GAIN_LIMIT)
 		c[band.freqKey] = float(self.freqCtrl.GetValue())
 		selection = self.widthChoice.GetSelection()
 		if selection != wx.NOT_FOUND:
@@ -224,30 +252,44 @@ class CedarSettingsPanel(SettingsPanel):
 		self.enabledCheckBox.SetValue(c["enabled"])
 		self.enabledCheckBox.Bind(wx.EVT_CHECKBOX, self.onEnabledChanged)
 
+		# Translators: chooses whether levels read as decibels or on a plain 0 to 100 scale.
+		self.scaleChoice = sHelper.addLabeledControl(
+			_("&Show levels as:"), wx.Choice,
+			choices=[
+				# Translators: the decibel option of the level scale setting.
+				_("Decibels, -18 to 18"),
+				# Translators: the plain option of the level scale setting, for people who do not want decibels.
+				_("0 to 100, where 50 is flat"),
+			],
+		)
+		self.scaleChoice.SetSelection(1 if c["percentScale"] else 0)
+		self.scaleChoice.Bind(wx.EVT_CHOICE, self.onScaleChanged)
+
 		# Translators: chooses a saved set of equalizer settings.
 		self.presetChoice = sHelper.addLabeledControl(_("&Preset:"), wx.Choice, choices=self._presetChoices())
 		self.presetChoice.Bind(wx.EVT_CHOICE, self.onPresetChosen)
 
 		# Spin controls rather than sliders: a Win32 trackbar reports its position as a percentage,
-		# which tells you nothing about decibels or where zero is.
+		# which tells you nothing about decibels or where flat is.
+		low, high = displayRange(GAIN_LIMIT)
 		self.gainCtrls = {}
+		self.gainLabels = {}
 		for band in BANDS:
 			if not band.basic:
 				continue
-			# Translators: how much one equalizer band boosts or cuts, in decibels.
-			ctrl = sHelper.addLabeledControl(
-				_("%s (dB):") % band.label, wx.SpinCtrl,
-				min=-int(GAIN_LIMIT), max=int(GAIN_LIMIT),
-				initial=int(round(c[band.gainKey])),
+			ctrl, label = _addLabeledControl(
+				self, sHelper, _levelLabel(band.label), wx.SpinCtrl,
+				min=low, max=high, initial=displayFromDb(c[band.gainKey], GAIN_LIMIT),
 			)
 			ctrl.Bind(wx.EVT_SPINCTRL, self.onGainChanged)
 			self.gainCtrls[band.id] = ctrl
+			self.gainLabels[band.id] = label
 
+		low, high = displayRange(PREAMP_LIMIT)
 		# Translators: overall level applied before the equalizer.
-		self.preampCtrl = sHelper.addLabeledControl(
-			_("Overall &volume trim (dB):"), wx.SpinCtrl,
-			min=-int(PREAMP_LIMIT), max=int(PREAMP_LIMIT),
-			initial=int(round(c["preamp"])),
+		self.preampCtrl, self.preampLabel = _addLabeledControl(
+			self, sHelper, _levelLabel(_("Overall &volume trim")), wx.SpinCtrl,
+			min=low, max=high, initial=displayFromDb(c["preamp"], PREAMP_LIMIT),
 		)
 		self.preampCtrl.Bind(wx.EVT_SPINCTRL, self.onGainChanged)
 
@@ -307,17 +349,34 @@ class CedarSettingsPanel(SettingsPanel):
 	def _writeGains(self):
 		c = conf()
 		for bandId, ctrl in self.gainCtrls.items():
-			c["%sGain" % bandId] = float(ctrl.GetValue())
-		c["preamp"] = float(self.preampCtrl.GetValue())
+			c["%sGain" % bandId] = dbFromDisplay(ctrl.GetValue(), GAIN_LIMIT)
+		c["preamp"] = dbFromDisplay(self.preampCtrl.GetValue(), PREAMP_LIMIT)
 		c["autoGain"] = self.autoGainCheckBox.GetValue()
 		equalizer.invalidate()
 
 	def _readGainsFromConfig(self):
 		c = conf()
 		for bandId, ctrl in self.gainCtrls.items():
-			ctrl.SetValue(int(round(c["%sGain" % bandId])))
-		self.preampCtrl.SetValue(int(round(c["preamp"])))
+			ctrl.SetValue(displayFromDb(c["%sGain" % bandId], GAIN_LIMIT))
+		self.preampCtrl.SetValue(displayFromDb(c["preamp"], PREAMP_LIMIT))
 		self.autoGainCheckBox.SetValue(c["autoGain"])
+
+	def onScaleChanged(self, evt):
+		evt.Skip()
+		conf()["percentScale"] = self.scaleChoice.GetSelection() == 1
+		# The stored gains never change, only the numbers and units the controls show for them.
+		low, high = displayRange(GAIN_LIMIT)
+		for bandId, ctrl in self.gainCtrls.items():
+			ctrl.SetRange(low, high)
+			label = self.gainLabels.get(bandId)
+			if label is not None:
+				label.SetLabel(_levelLabel(BAND_BY_ID[bandId].label))
+		low, high = displayRange(PREAMP_LIMIT)
+		self.preampCtrl.SetRange(low, high)
+		if self.preampLabel is not None:
+			self.preampLabel.SetLabel(_levelLabel(_("Overall &volume trim")))
+		self._readGainsFromConfig()
+		self.Layout()
 
 	def onEnabledChanged(self, evt):
 		evt.Skip()

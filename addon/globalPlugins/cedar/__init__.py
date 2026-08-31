@@ -10,7 +10,7 @@ from logHandler import log
 from scriptHandler import script
 
 from . import audiohook, presets
-from .engine import BAND_BY_ID, GAIN_LIMIT, conf, equalizer
+from .engine import BAND_BY_ID, GAIN_LIMIT, conf, displayFromDb, equalizer, usesPercentScale
 from .settingsgui import CedarSettingsPanel
 
 try:
@@ -58,6 +58,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		if value == 0.0:
 			# Translators: reported when a band is returned to no boost and no cut. {band} is the band name.
 			ui.message(_("{band} flat").format(band=band.label))
+		elif usesPercentScale():
+			# Translators: reports a band's new level on the 0 to 100 scale. {band} is the band name.
+			ui.message(_("{band} {level}").format(band=band.label, level=displayFromDb(value, GAIN_LIMIT)))
 		else:
 			# Translators: reports a band's new level. {band} is the band name, {gain} the level in decibels.
 			ui.message(_("{band} {gain:+.0f} decibels").format(band=band.label, gain=value))

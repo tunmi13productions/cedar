@@ -22,9 +22,10 @@ Cedar needs NVDA 2024.1 or later. It is tested on NVDA 2025.3.
 
 Open NVDA menu, Preferences, Settings, and choose the Cedar equalizer category. The panel has:
 - Enable the Cedar equalizer, which switches all processing on or off.
+- Show levels as, which chooses how every level in Cedar reads. Decibels runs from -18 to 18 with 0 flat, and is the default. 0 to 100 puts flat at 50 and avoids decibels entirely, which matches how NVDA's own voice settings read. It changes the display only, never the sound.
 - Preset, a list of ready made settings plus any you have saved yourself.
-- Bass, Mids and Treble, each adjustable from -18 to +18 decibels with the arrow keys, where 0 is flat.
-- Overall volume trim, which raises or lowers the whole speech level by up to 12 decibels.
+- Bass, Mids and Treble, adjustable with the arrow keys or by typing a number.
+- Overall volume trim, which raises or lowers the whole speech level.
 - Prevent distortion from boosted bands, which quietly compensates for the level your boosts add. Leave this on unless you know you want the extra loudness.
 - Test voice, which speaks a sample sentence so you can judge a setting by ear.
 - Save as preset, Delete preset and Reset to flat.
@@ -43,7 +44,7 @@ The presets were tuned by frequency reasoning rather than by ear against real vo
 
 Tick Enable advanced settings and the Advanced settings button becomes available. The advanced dialog gives you:
 - A Band list covering five bands: Bass and Treble are shelves, Low mid, Mids and Presence are peaking filters.
-- Gain and Frequency as spin controls you can type into, and Width or slope as a named list running from very wide to extremely narrow, so you can put a band exactly where a particular voice needs it.
+- Gain and Frequency as spin controls you can type into, and Width or slope as a named list running from very wide to extremely narrow, so you can put a band exactly where a particular voice needs it. Gain follows whichever scale you picked on the main panel.
 - Remove low frequency rumble, for synthesizers with a heavy low end.
 - Remove high frequency hiss, for synthesizers with a harsh or noisy top end.
 - Soften loud peaks instead of clipping them, which rounds off peaks that would otherwise distort.
