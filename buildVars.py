@@ -12,12 +12,12 @@ addon_info = {
 		"Warning: this add-on was vibe coded with Claude Opus 5, Anthropic's AI model. "
 		"Expect oddities, and please report anything that behaves strangely."
 	),
-	"addon_version": "1.5",
+	"addon_version": "1.6",
 	"addon_author": "tunmi13 productions <tunmi12@mail.com>",
 	"addon_url": "https://github.com/tunmi13productions/cedar",
 	"addon_docFileName": "readme.html",
 	"addon_minimumNVDAVersion": "2024.1",
-	"addon_lastTestedNVDAVersion": "2025.3",
+	"addon_lastTestedNVDAVersion": "2026.1",
 	"addon_updateChannel": None,
 }
 

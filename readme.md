@@ -16,7 +16,7 @@ https://github.com/tunmi13productions/cedar/releases/latest/download/cedar.nvda-
 
 That link always gives you the newest build. Press enter on the downloaded file to install it, and restart NVDA when prompted.
 
-Cedar needs NVDA 2024.1 or later. It is tested on NVDA 2025.3.
+Cedar runs on NVDA 2024.1 through 2026.1. NVDA 2026.1 moved to 64 bit and to Python 3.13, which broke a great many add-ons, but Cedar ships no compiled code and uses no APIs that changed, so one build covers the whole range.
 
 ## Using Cedar
 
