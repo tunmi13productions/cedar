@@ -1,0 +1,70 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run tests
+        run: python tests/test_cedar.py
+
+      - name: Check the tag matches buildVars.py
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(python -c "from buildVars import addon_info; print(addon_info['addon_version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match addon_version $version in buildVars.py" >&2
+            exit 1
+          fi
+
+      - name: Build the add-on
+        run: |
+          python build.py
+          # A copy under a fixed name, so the download link never has to change.
+          cp cedar-*.nvda-addon cedar.nvda-addon
+
+      - name: Upload the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: cedar-addon
+          path: cedar*.nvda-addon
+
+      - name: Publish the version release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Cedar $version" \
+            --generate-notes \
+            "cedar-$version.nvda-addon" "cedar.nvda-addon"
+
+      - name: Move the latest release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # Recreated rather than edited, so the latest tag follows the newest commit.
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest \
+            --target "$GITHUB_SHA" \
+            --title "Latest build" \
+            --notes "Cedar $version, from tag $GITHUB_REF_NAME. This release always carries the newest build, so the download link below never changes." \
+            cedar.nvda-addon
