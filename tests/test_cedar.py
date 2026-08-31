@@ -464,6 +464,9 @@ class TestFilterSafety(unittest.TestCase):
 
 
 class TestDisplayScale(CedarTestCase):
+	def test_the_plain_scale_is_the_default(self):
+		self.assertTrue(conf()["percentScale"])
+
 	def test_decibels_are_shown_as_themselves(self):
 		conf()["percentScale"] = False
 		self.assertEqual(engine.displayRange(engine.GAIN_LIMIT), (-18, 18))

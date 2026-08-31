@@ -89,7 +89,7 @@ confspec = {
 	"enabled": "boolean(default=True)",
 	"processSounds": "boolean(default=False)",
 	"advancedMode": "boolean(default=False)",
-	"percentScale": "boolean(default=False)",
+	"percentScale": "boolean(default=True)",
 	"preamp": "float(default=0.0, min=-%s, max=%s)" % (PREAMP_LIMIT, PREAMP_LIMIT),
 	"autoGain": "boolean(default=True)",
 	"softClip": "boolean(default=True)",

@@ -260,13 +260,13 @@ class CedarSettingsPanel(SettingsPanel):
 		self.scaleChoice = sHelper.addLabeledControl(
 			_("&Show levels as:"), wx.Choice,
 			choices=[
-				# Translators: the decibel option of the level scale setting.
-				_("Decibels, -18 to 18"),
 				# Translators: the plain option of the level scale setting, for people who do not want decibels.
 				_("0 to 100, where 50 is flat"),
+				# Translators: the decibel option of the level scale setting, for people who prefer real units.
+				_("Decibels, -18 to 18"),
 			],
 		)
-		self.scaleChoice.SetSelection(1 if c["percentScale"] else 0)
+		self.scaleChoice.SetSelection(0 if c["percentScale"] else 1)
 		self.scaleChoice.Bind(wx.EVT_CHOICE, self.onScaleChanged)
 
 		# Spin controls rather than sliders: a Win32 trackbar reports its position as a percentage,
@@ -363,7 +363,7 @@ class CedarSettingsPanel(SettingsPanel):
 
 	def onScaleChanged(self, evt):
 		evt.Skip()
-		conf()["percentScale"] = self.scaleChoice.GetSelection() == 1
+		conf()["percentScale"] = self.scaleChoice.GetSelection() == 0
 		# The stored gains never change, only the numbers and units the controls show for them.
 		low, high = displayRange(GAIN_LIMIT)
 		for bandId, ctrl in self.gainCtrls.items():
