@@ -469,15 +469,22 @@ class TestGuiContract(unittest.TestCase):
 	# From gui.guiHelper._HorizontalCtrlT in NVDA 2025.3.
 	LABELABLE = {"Button", "Choice", "ComboBox", "Slider", "SpinCtrl", "TextCtrl"}
 
+	@staticmethod
+	def _source():
+		path = os.path.join(nvda_stubs.ADDON_ROOT, "cedar", "settingsgui.py")
+		with io.open(path, encoding="utf-8") as handle:
+			return handle.read()
+
 	def test_every_labeled_control_is_one_guihelper_can_label(self):
 		import re
 
-		path = os.path.join(nvda_stubs.ADDON_ROOT, "cedar", "settingsgui.py")
-		with io.open(path, encoding="utf-8") as handle:
-			source = handle.read()
-		used = set(re.findall(r"addLabeledControl\(\s*[^,]+,\s*wx\.(\w+)", source))
+		used = set(re.findall(r"addLabeledControl\(\s*[^,]+,\s*wx\.(\w+)", self._source()))
 		self.assertTrue(used, "no labeled controls found, the check has gone stale")
 		self.assertEqual(used - self.LABELABLE, set())
+
+	def test_no_control_announces_a_bare_percentage(self):
+		"""A Win32 trackbar reports its position as a percentage, so 0 dB reads as 50 rather than 0."""
+		self.assertNotIn("wx.Slider", self._source())
 
 
 if __name__ == "__main__":

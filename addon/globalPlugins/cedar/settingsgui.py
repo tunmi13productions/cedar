@@ -82,13 +82,11 @@ class AdvancedDialog(wx.Dialog):
 		self.bandChoice.Bind(wx.EVT_CHOICE, self.onBandChanged)
 
 		# Translators: how much the selected band boosts or cuts, in decibels.
-		self.gainSlider = sHelper.addLabeledControl(
-			_("&Gain (dB):"), wx.Slider,
-			value=0, minValue=-int(GAIN_LIMIT), maxValue=int(GAIN_LIMIT),
+		self.gainCtrl = sHelper.addLabeledControl(
+			_("&Gain (dB):"), wx.SpinCtrl,
+			min=-int(GAIN_LIMIT), max=int(GAIN_LIMIT), initial=0,
 		)
-		self.gainSlider.SetLineSize(1)
-		self.gainSlider.SetPageSize(3)
-		self.gainSlider.Bind(wx.EVT_SLIDER, self.onBandValueChanged)
+		self.gainCtrl.Bind(wx.EVT_SPINCTRL, self.onBandValueChanged)
 
 		# Translators: the centre frequency of a peaking band, or the corner frequency of a shelf.
 		self.freqCtrl = sHelper.addLabeledControl(
@@ -157,7 +155,7 @@ class AdvancedDialog(wx.Dialog):
 		c = conf()
 		self._loading = True
 		try:
-			self.gainSlider.SetValue(int(round(c[band.gainKey])))
+			self.gainCtrl.SetValue(int(round(c[band.gainKey])))
 			self.freqCtrl.SetRange(int(band.minFreq), int(band.maxFreq))
 			_setSpinStep(self.freqCtrl, 5 if band.maxFreq <= 1500 else 25)
 			self.freqCtrl.SetValue(int(round(c[band.freqKey])))
@@ -187,7 +185,7 @@ class AdvancedDialog(wx.Dialog):
 			return
 		band = self._currentBand()
 		c = conf()
-		c[band.gainKey] = float(self.gainSlider.GetValue())
+		c[band.gainKey] = float(self.gainCtrl.GetValue())
 		c[band.freqKey] = float(self.freqCtrl.GetValue())
 		selection = self.widthChoice.GetSelection()
 		if selection != wx.NOT_FOUND:
@@ -230,37 +228,35 @@ class CedarSettingsPanel(SettingsPanel):
 		self.presetChoice = sHelper.addLabeledControl(_("&Preset:"), wx.Choice, choices=self._presetChoices())
 		self.presetChoice.Bind(wx.EVT_CHOICE, self.onPresetChosen)
 
-		self.gainSliders = {}
+		# Spin controls rather than sliders: a Win32 trackbar reports its position as a percentage,
+		# which tells you nothing about decibels or where zero is.
+		self.gainCtrls = {}
 		for band in BANDS:
 			if not band.basic:
 				continue
-			# Translators: a boost or cut slider for one equalizer band, in decibels.
-			slider = sHelper.addLabeledControl(
-				_("%s (dB):") % band.label, wx.Slider,
-				value=int(round(c[band.gainKey])),
-				minValue=-int(GAIN_LIMIT), maxValue=int(GAIN_LIMIT),
+			# Translators: how much one equalizer band boosts or cuts, in decibels.
+			ctrl = sHelper.addLabeledControl(
+				_("%s (dB):") % band.label, wx.SpinCtrl,
+				min=-int(GAIN_LIMIT), max=int(GAIN_LIMIT),
+				initial=int(round(c[band.gainKey])),
 			)
-			slider.SetLineSize(1)
-			slider.SetPageSize(3)
-			slider.Bind(wx.EVT_SLIDER, self.onSliderChanged)
-			self.gainSliders[band.id] = slider
+			ctrl.Bind(wx.EVT_SPINCTRL, self.onGainChanged)
+			self.gainCtrls[band.id] = ctrl
 
 		# Translators: overall level applied before the equalizer.
-		self.preampSlider = sHelper.addLabeledControl(
-			_("Overall &volume trim (dB):"), wx.Slider,
-			value=int(round(c["preamp"])),
-			minValue=-int(PREAMP_LIMIT), maxValue=int(PREAMP_LIMIT),
+		self.preampCtrl = sHelper.addLabeledControl(
+			_("Overall &volume trim (dB):"), wx.SpinCtrl,
+			min=-int(PREAMP_LIMIT), max=int(PREAMP_LIMIT),
+			initial=int(round(c["preamp"])),
 		)
-		self.preampSlider.SetLineSize(1)
-		self.preampSlider.SetPageSize(3)
-		self.preampSlider.Bind(wx.EVT_SLIDER, self.onSliderChanged)
+		self.preampCtrl.Bind(wx.EVT_SPINCTRL, self.onGainChanged)
 
 		# Translators: automatically lowers the level so boosted bands do not distort.
 		self.autoGainCheckBox = sHelper.addItem(
 			wx.CheckBox(self, label=_("&Prevent distortion from boosted bands"))
 		)
 		self.autoGainCheckBox.SetValue(c["autoGain"])
-		self.autoGainCheckBox.Bind(wx.EVT_CHECKBOX, self.onSliderChanged)
+		self.autoGainCheckBox.Bind(wx.EVT_CHECKBOX, self.onGainChanged)
 
 		buttonHelper = guiHelper.ButtonHelper(wx.HORIZONTAL)
 		# Translators: speaks a sample sentence so the current settings can be judged by ear.
@@ -298,9 +294,9 @@ class CedarSettingsPanel(SettingsPanel):
 
 	def _refreshEnabledStates(self):
 		enabled = self.enabledCheckBox.GetValue()
-		for slider in self.gainSliders.values():
-			slider.Enable(enabled)
-		self.preampSlider.Enable(enabled)
+		for ctrl in self.gainCtrls.values():
+			ctrl.Enable(enabled)
+		self.preampCtrl.Enable(enabled)
 		self.autoGainCheckBox.Enable(enabled)
 		self.advancedButton.Enable(enabled and self.advancedCheckBox.GetValue())
 		selection = self.presetChoice.GetStringSelection()
@@ -308,19 +304,19 @@ class CedarSettingsPanel(SettingsPanel):
 			bool(selection) and selection != CUSTOM_LABEL and not presets.isBuiltin(selection)
 		)
 
-	def _writeSliders(self):
+	def _writeGains(self):
 		c = conf()
-		for bandId, slider in self.gainSliders.items():
-			c["%sGain" % bandId] = float(slider.GetValue())
-		c["preamp"] = float(self.preampSlider.GetValue())
+		for bandId, ctrl in self.gainCtrls.items():
+			c["%sGain" % bandId] = float(ctrl.GetValue())
+		c["preamp"] = float(self.preampCtrl.GetValue())
 		c["autoGain"] = self.autoGainCheckBox.GetValue()
 		equalizer.invalidate()
 
-	def _readSlidersFromConfig(self):
+	def _readGainsFromConfig(self):
 		c = conf()
-		for bandId, slider in self.gainSliders.items():
-			slider.SetValue(int(round(c["%sGain" % bandId])))
-		self.preampSlider.SetValue(int(round(c["preamp"])))
+		for bandId, ctrl in self.gainCtrls.items():
+			ctrl.SetValue(int(round(c["%sGain" % bandId])))
+		self.preampCtrl.SetValue(int(round(c["preamp"])))
 		self.autoGainCheckBox.SetValue(c["autoGain"])
 
 	def onEnabledChanged(self, evt):
@@ -329,9 +325,9 @@ class CedarSettingsPanel(SettingsPanel):
 		equalizer.invalidate()
 		self._refreshEnabledStates()
 
-	def onSliderChanged(self, evt):
+	def onGainChanged(self, evt):
 		evt.Skip()
-		self._writeSliders()
+		self._writeGains()
 		conf()["currentPreset"] = ""
 		self.presetChoice.SetSelection(0)
 		self._refreshEnabledStates()
@@ -343,13 +339,13 @@ class CedarSettingsPanel(SettingsPanel):
 			return
 		presets.applyPreset(name)
 		equalizer.invalidate()
-		self._readSlidersFromConfig()
+		self._readGainsFromConfig()
 		self._refreshEnabledStates()
 
 	def onReset(self, evt):
 		resetToFlat()
 		equalizer.invalidate()
-		self._readSlidersFromConfig()
+		self._readGainsFromConfig()
 		self._selectPresetInList()
 
 	def onTest(self, evt):
@@ -408,11 +404,11 @@ class CedarSettingsPanel(SettingsPanel):
 	def onAdvanced(self, evt):
 		with AdvancedDialog(self) as dialog:
 			dialog.ShowModal()
-		self._readSlidersFromConfig()
+		self._readGainsFromConfig()
 		self._selectPresetInList()
 
 	def onSave(self):
-		self._writeSliders()
+		self._writeGains()
 		c = conf()
 		c["enabled"] = self.enabledCheckBox.GetValue()
 		c["advancedMode"] = self.advancedCheckBox.GetValue()
