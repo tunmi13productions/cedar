@@ -22,8 +22,8 @@ Cedar needs NVDA 2024.1 or later. It is tested on NVDA 2025.3.
 
 Open NVDA menu, Preferences, Settings, and choose the Cedar equalizer category. The panel has:
 - Enable the Cedar equalizer, which switches all processing on or off.
-- Show levels as, which chooses how every level in Cedar reads. Decibels runs from -18 to 18 with 0 flat, and is the default. 0 to 100 puts flat at 50 and avoids decibels entirely, which matches how NVDA's own voice settings read. It changes the display only, never the sound.
 - Preset, a list of ready made settings plus any you have saved yourself.
+- Show levels as, which chooses how every level in Cedar reads. Decibels runs from -18 to 18 with 0 flat, and is the default. 0 to 100 puts flat at 50 and avoids decibels entirely, which matches how NVDA's own voice settings read. It changes the display only, never the sound.
 - Bass, Mids and Treble, adjustable with the arrow keys or by typing a number.
 - Overall volume trim, which raises or lowers the whole speech level.
 - Prevent distortion from boosted bands, which quietly compensates for the level your boosts add. Leave this on unless you know you want the extra loudness.

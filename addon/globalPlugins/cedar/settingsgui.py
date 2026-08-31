@@ -252,6 +252,10 @@ class CedarSettingsPanel(SettingsPanel):
 		self.enabledCheckBox.SetValue(c["enabled"])
 		self.enabledCheckBox.Bind(wx.EVT_CHECKBOX, self.onEnabledChanged)
 
+		# Translators: chooses a saved set of equalizer settings.
+		self.presetChoice = sHelper.addLabeledControl(_("&Preset:"), wx.Choice, choices=self._presetChoices())
+		self.presetChoice.Bind(wx.EVT_CHOICE, self.onPresetChosen)
+
 		# Translators: chooses whether levels read as decibels or on a plain 0 to 100 scale.
 		self.scaleChoice = sHelper.addLabeledControl(
 			_("&Show levels as:"), wx.Choice,
@@ -264,10 +268,6 @@ class CedarSettingsPanel(SettingsPanel):
 		)
 		self.scaleChoice.SetSelection(1 if c["percentScale"] else 0)
 		self.scaleChoice.Bind(wx.EVT_CHOICE, self.onScaleChanged)
-
-		# Translators: chooses a saved set of equalizer settings.
-		self.presetChoice = sHelper.addLabeledControl(_("&Preset:"), wx.Choice, choices=self._presetChoices())
-		self.presetChoice.Bind(wx.EVT_CHOICE, self.onPresetChosen)
 
 		# Spin controls rather than sliders: a Win32 trackbar reports its position as a percentage,
 		# which tells you nothing about decibels or where flat is.
