@@ -8,7 +8,7 @@ Most people only ever need three controls: bass, mids and treble. Those are the 
 
 This add-on was vibe coded with Claude Opus 5, Anthropic's AI model. It works, and it has a test suite, but it was not written line by line by a human. Expect oddities. If something behaves strangely, please report it rather than assuming it is meant to work that way.
 
-Cedar sits directly in the path of NVDA's speech audio. To remove it normally, go to NVDA menu, Tools, Add-on Store, open the Installed add-ons tab and uninstall it from there. If it ever goes wrong badly enough that you cannot hear NVDA well enough to do that, delete this folder and restart NVDA:
+Cedar filters NVDA's speech audio on its way to your sound card, so if it goes wrong it can affect whether you hear NVDA at all. To remove it normally, go to NVDA menu, Tools, Add-on Store, open the Installed add-ons tab and uninstall it from there. If it ever goes wrong badly enough that you cannot hear NVDA well enough to do that, delete this folder and restart NVDA:
 
 %appdata%\nvda\addons\cedar
 
