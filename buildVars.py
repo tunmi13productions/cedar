@@ -13,14 +13,12 @@ addon_info = {
 		"Warning: this add-on was vibe coded with Claude Opus 5, Anthropic's AI model. "
 		"Expect oddities, and please report anything that behaves strangely."
 	),
-	"addon_version": "1.7",
+	"addon_version": "1.7.1",
 	# Translators: what changed in this version, shown in NVDA's add-on store.
 	"addon_changelog": (
-		"Any synthesizer can now have its own equalizer settings, used whenever it is active. "
-		"The new Settings for list edits the shared settings or any installed synthesizer "
-		"without switching to it. "
-		"Also equalize NVDA sounds and beeps has moved from the advanced dialog to the main panel. "
-		"Tested with NVDA 2026.3, and still supports every 2025 release."
+		"The add-on is now credited to tunmi13. "
+		"The add-on store can now show what changed in each version. "
+		"Nothing about how Cedar sounds or works has changed since 1.7."
 	),
 	"addon_author": "tunmi13 <tunmi12@mail.com>",
 	"addon_url": "https://github.com/tunmi13productions/cedar",
