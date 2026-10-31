@@ -4,6 +4,7 @@ import addonHandler
 import config
 import globalPluginHandler
 import gui
+import synthDriverHandler
 import ui
 import wx
 from logHandler import log
@@ -31,11 +32,14 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		gui.NVDASettingsDialog.categoryClasses.append(CedarSettingsPanel)
 		config.post_configProfileSwitch.register(self._onConfigChanged)
 		config.post_configReset.register(self._onConfigChanged)
+		# A synthesizer can have its own settings, so switching synths can change what Cedar should do.
+		synthDriverHandler.synthChanged.register(self._onConfigChanged)
 
 	def terminate(self):
 		try:
 			config.post_configProfileSwitch.unregister(self._onConfigChanged)
 			config.post_configReset.unregister(self._onConfigChanged)
+			synthDriverHandler.synthChanged.unregister(self._onConfigChanged)
 		except Exception:
 			log.debugWarning("Cedar: could not unregister config handlers", exc_info=True)
 		try:

@@ -113,6 +113,9 @@ def install():
 	synthDriverHandler = _module("synthDriverHandler")
 	synthDriverHandler.synth = None
 	synthDriverHandler.getSynth = lambda: synthDriverHandler.synth
+	synthDriverHandler.synthChanged = ExtensionPoint()
+	synthDriverHandler.synthList = []
+	synthDriverHandler.getSynthList = lambda: list(synthDriverHandler.synthList)
 
 	class Conf(dict):
 		"""Materialises a section from the registered spec the first time it is asked for."""

@@ -17,12 +17,18 @@ from .engine import (
 	BANDS,
 	GAIN_LIMIT,
 	PREAMP_LIMIT,
+	activeSynthName,
 	conf,
 	dbFromDisplay,
 	displayFromDb,
 	displayRange,
 	equalizer,
+	installedSynths,
+	loadSynthSettings,
+	rawConf,
 	resetToFlat,
+	setSynthHasOwnSettings,
+	synthHasOwnSettings,
 	usesPercentScale,
 )
 
@@ -38,13 +44,14 @@ CUSTOM_LABEL = _("(Custom)")
 SAMPLE_TEXT = _("The quick brown fox jumps over the lazy dog. Cedar is shaping this voice right now.")
 
 
+# Both work on the raw section, so Cancel also puts back which synthesizers had their own settings.
 def _snapshotConfig():
-	c = conf()
+	c = rawConf()
 	return {key: c[key] for key in c}
 
 
 def _restoreConfig(snapshot):
-	c = conf()
+	c = rawConf()
 	for key, value in snapshot.items():
 		c[key] = value
 	equalizer.invalidate()
@@ -90,15 +97,62 @@ def _setSpinStep(ctrl, step):
 		pass
 
 
+def _synthTargets():
+	"""(name, description) for everything the panel can edit, where a name of None is the shared settings.
+
+	Installed synthesizers come first in NVDA's own order, then any that have settings stored but are no
+	longer installed, so those settings can still be found and removed.
+	"""
+	targets = [(None, None)]
+	seen = set()
+	for name, description in installedSynths():
+		if name and name not in seen:
+			seen.add(name)
+			targets.append((name, description or name))
+	for name in [activeSynthName()] + sorted(loadSynthSettings()):
+		if name and name not in seen:
+			seen.add(name)
+			targets.append((name, name))
+	return targets
+
+
+def _targetLabel(name, description):
+	if name is None:
+		# Translators: the entry in the Settings for list that edits the settings every synthesizer shares.
+		return _("Shared settings")
+	if synthHasOwnSettings(name):
+		# Translators: describes a synthesizer in the Settings for list that has its own settings.
+		# {synth} is the synthesizer's name, such as eSpeak NG.
+		label = _("{synth}, own settings").format(synth=description)
+	else:
+		# Translators: describes a synthesizer in the Settings for list that uses the shared settings.
+		# {synth} is the synthesizer's name, such as eSpeak NG.
+		label = _("{synth}, uses shared settings").format(synth=description)
+	if name == activeSynthName():
+		# Translators: added to the synthesizer in the Settings for list that is speaking right now.
+		label = _("{label}, active").format(label=label)
+	return label
+
+
+def _synthCheckBoxLabel(description):
+	if not description:
+		# Translators: label of the per synthesizer checkbox while the shared settings are chosen.
+		return _("&Give this synthesizer its own settings")
+	# Translators: label of the checkbox that keeps separate equalizer settings for one synthesizer.
+	# {synth} is the synthesizer's name, such as eSpeak NG.
+	return _("&Give {synth} its own settings").format(synth=description.replace("&", "&&"))
+
+
 class AdvancedDialog(wx.Dialog):
 	"""Per band frequency and width controls, plus the filters most users never need."""
 
-	def __init__(self, parent):
+	def __init__(self, parent, synthName):
 		# Translators: title of the Cedar advanced settings dialog.
 		super().__init__(parent, title=_("Cedar advanced settings"))
 		self._snapshot = _snapshotConfig()
 		self._loading = False
-		c = conf()
+		self._synthName = synthName
+		c = self._conf()
 
 		mainSizer = wx.BoxSizer(wx.VERTICAL)
 		sHelper = guiHelper.BoxSizerHelper(self, orientation=wx.VERTICAL)
@@ -157,13 +211,6 @@ class AdvancedDialog(wx.Dialog):
 		self.softClipCheckBox.SetValue(c["softClip"])
 		self.softClipCheckBox.Bind(wx.EVT_CHECKBOX, self.onGlobalChanged)
 
-		# Translators: applies the equalizer to NVDA's beeps and sounds as well as to speech.
-		self.soundsCheckBox = sHelper.addItem(
-			wx.CheckBox(self, label=_("Also equalize NVDA s&ounds and beeps"))
-		)
-		self.soundsCheckBox.SetValue(c["processSounds"])
-		self.soundsCheckBox.Bind(wx.EVT_CHECKBOX, self.onGlobalChanged)
-
 		mainSizer.Add(sHelper.sizer, border=guiHelper.BORDER_FOR_DIALOGS, flag=wx.ALL)
 		mainSizer.Add(
 			self.CreateButtonSizer(wx.OK | wx.CANCEL),
@@ -175,12 +222,15 @@ class AdvancedDialog(wx.Dialog):
 		self._loadBand()
 		self.bandChoice.SetFocus()
 
+	def _conf(self):
+		return conf(self._synthName)
+
 	def _currentBand(self):
 		return BANDS[max(0, self.bandChoice.GetSelection())]
 
 	def _loadBand(self):
 		band = self._currentBand()
-		c = conf()
+		c = self._conf()
 		self._loading = True
 		try:
 			self.gainCtrl.SetValue(displayFromDb(c[band.gainKey], GAIN_LIMIT))
@@ -212,7 +262,7 @@ class AdvancedDialog(wx.Dialog):
 		if self._loading:
 			return
 		band = self._currentBand()
-		c = conf()
+		c = self._conf()
 		c[band.gainKey] = dbFromDisplay(self.gainCtrl.GetValue(), GAIN_LIMIT)
 		c[band.freqKey] = float(self.freqCtrl.GetValue())
 		selection = self.widthChoice.GetSelection()
@@ -223,13 +273,12 @@ class AdvancedDialog(wx.Dialog):
 
 	def onGlobalChanged(self, evt):
 		evt.Skip()
-		c = conf()
+		c = self._conf()
 		c["rumbleFilter"] = self.rumbleCheckBox.GetValue()
 		c["rumbleFreq"] = float(self.rumbleFreqCtrl.GetValue())
 		c["hissFilter"] = self.hissCheckBox.GetValue()
 		c["hissFreq"] = float(self.hissFreqCtrl.GetValue())
 		c["softClip"] = self.softClipCheckBox.GetValue()
-		c["processSounds"] = self.soundsCheckBox.GetValue()
 		c["currentPreset"] = ""
 		equalizer.invalidate()
 
@@ -244,13 +293,24 @@ class CedarSettingsPanel(SettingsPanel):
 
 	def makeSettings(self, settingsSizer):
 		self._snapshot = _snapshotConfig()
-		c = conf()
+		# Starts on the speaking synthesizer, the one NVDA's own speech previews.
+		self._synthName = activeSynthName()
 		sHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+
+		# Translators: chooses whether the controls below edit the shared settings or one synthesizer's.
+		self.targetChoice = sHelper.addLabeledControl(_("Settings &for:"), wx.Choice, choices=[])
+		self.targetChoice.Bind(wx.EVT_CHOICE, self.onTargetChosen)
+		self._loadTargets()
+		c = self._conf()
 
 		# Translators: turns the whole equalizer on or off.
 		self.enabledCheckBox = sHelper.addItem(wx.CheckBox(self, label=_("&Enable the Cedar equalizer")))
 		self.enabledCheckBox.SetValue(c["enabled"])
 		self.enabledCheckBox.Bind(wx.EVT_CHECKBOX, self.onEnabledChanged)
+
+		self.synthCheckBox = sHelper.addItem(wx.CheckBox(self, label=_synthCheckBoxLabel(None)))
+		self.synthCheckBox.Bind(wx.EVT_CHECKBOX, self.onSynthOwnToggled)
+		self._loadSynthCheckBox()
 
 		# Translators: chooses a saved set of equalizer settings.
 		self.presetChoice = sHelper.addLabeledControl(_("&Preset:"), wx.Choice, choices=self._presetChoices())
@@ -300,6 +360,13 @@ class CedarSettingsPanel(SettingsPanel):
 		self.autoGainCheckBox.SetValue(c["autoGain"])
 		self.autoGainCheckBox.Bind(wx.EVT_CHECKBOX, self.onGainChanged)
 
+		# Translators: applies the equalizer to NVDA's beeps and sounds as well as to speech.
+		self.soundsCheckBox = sHelper.addItem(
+			wx.CheckBox(self, label=_("Also equalize NVDA s&ounds and beeps"))
+		)
+		self.soundsCheckBox.SetValue(c["processSounds"])
+		self.soundsCheckBox.Bind(wx.EVT_CHECKBOX, self.onSoundsChanged)
+
 		buttonHelper = guiHelper.ButtonHelper(wx.HORIZONTAL)
 		# Translators: speaks a sample sentence so the current settings can be judged by ear.
 		testButton = buttonHelper.addButton(self, label=_("&Test voice"))
@@ -325,11 +392,50 @@ class CedarSettingsPanel(SettingsPanel):
 
 		self._selectPresetInList()
 
+	def _conf(self):
+		return conf(self._synthName)
+
+	def _loadTargets(self):
+		"""Fill the Settings for list, keeping the current choice when it is still there."""
+		self._targets = _synthTargets()
+		names = [name for name, _description in self._targets]
+		if self._synthName not in names:
+			self._synthName = None
+		self.targetChoice.Set([_targetLabel(name, description) for name, description in self._targets])
+		self.targetChoice.SetSelection(names.index(self._synthName))
+		self._shownActive = activeSynthName()
+
+	def _loadSynthCheckBox(self):
+		self.synthCheckBox.SetLabel(_synthCheckBoxLabel(dict(self._targets).get(self._synthName)))
+		self.synthCheckBox.SetValue(synthHasOwnSettings(self._synthName))
+		self.synthCheckBox.Enable(self._synthName is not None)
+
+	def _loadTarget(self):
+		self._loadSynthCheckBox()
+		self._readGainsFromConfig()
+		self._selectPresetInList()
+		self.Layout()
+
+	def onTargetChosen(self, evt):
+		evt.Skip()
+		selection = self.targetChoice.GetSelection()
+		if selection == wx.NOT_FOUND:
+			return
+		self._synthName = self._targets[selection][0]
+		self._loadTarget()
+
+	def onPanelActivated(self):
+		# The synthesizer can change while the settings dialog is open, so the active marker has to move.
+		if self._shownActive != activeSynthName():
+			self._loadTargets()
+			self._loadTarget()
+		super().onPanelActivated()
+
 	def _presetChoices(self):
 		return [CUSTOM_LABEL] + presets.allPresetNames()
 
 	def _selectPresetInList(self):
-		name = conf()["currentPreset"]
+		name = self._conf()["currentPreset"]
 		index = self.presetChoice.FindString(name) if name else wx.NOT_FOUND
 		self.presetChoice.SetSelection(0 if index == wx.NOT_FOUND else index)
 		self._refreshEnabledStates()
@@ -340,6 +446,7 @@ class CedarSettingsPanel(SettingsPanel):
 			ctrl.Enable(enabled)
 		self.preampCtrl.Enable(enabled)
 		self.autoGainCheckBox.Enable(enabled)
+		self.soundsCheckBox.Enable(enabled)
 		self.advancedButton.Enable(enabled and self.advancedCheckBox.GetValue())
 		selection = self.presetChoice.GetStringSelection()
 		self.deleteButton.Enable(
@@ -347,7 +454,7 @@ class CedarSettingsPanel(SettingsPanel):
 		)
 
 	def _writeGains(self):
-		c = conf()
+		c = self._conf()
 		for bandId, ctrl in self.gainCtrls.items():
 			c["%sGain" % bandId] = dbFromDisplay(ctrl.GetValue(), GAIN_LIMIT)
 		c["preamp"] = dbFromDisplay(self.preampCtrl.GetValue(), PREAMP_LIMIT)
@@ -355,7 +462,7 @@ class CedarSettingsPanel(SettingsPanel):
 		equalizer.invalidate()
 
 	def _readGainsFromConfig(self):
-		c = conf()
+		c = self._conf()
 		for bandId, ctrl in self.gainCtrls.items():
 			ctrl.SetValue(displayFromDb(c["%sGain" % bandId], GAIN_LIMIT))
 		self.preampCtrl.SetValue(displayFromDb(c["preamp"], PREAMP_LIMIT))
@@ -384,10 +491,23 @@ class CedarSettingsPanel(SettingsPanel):
 		equalizer.invalidate()
 		self._refreshEnabledStates()
 
+	def onSynthOwnToggled(self, evt):
+		evt.Skip()
+		setSynthHasOwnSettings(self.synthCheckBox.GetValue(), self._synthName)
+		# Dropping a synthesizer's own settings puts the shared ones back, so the controls must follow.
+		equalizer.invalidate()
+		self._loadTargets()
+		self._loadTarget()
+
+	def onSoundsChanged(self, evt):
+		evt.Skip()
+		conf()["processSounds"] = self.soundsCheckBox.GetValue()
+		equalizer.invalidate()
+
 	def onGainChanged(self, evt):
 		evt.Skip()
 		self._writeGains()
-		conf()["currentPreset"] = ""
+		self._conf()["currentPreset"] = ""
 		self.presetChoice.SetSelection(0)
 		self._refreshEnabledStates()
 
@@ -396,13 +516,13 @@ class CedarSettingsPanel(SettingsPanel):
 		name = self.presetChoice.GetStringSelection()
 		if name == CUSTOM_LABEL:
 			return
-		presets.applyPreset(name)
+		presets.applyPreset(name, self._conf())
 		equalizer.invalidate()
 		self._readGainsFromConfig()
 		self._refreshEnabledStates()
 
 	def onReset(self, evt):
-		resetToFlat()
+		resetToFlat(self._conf())
 		equalizer.invalidate()
 		self._readGainsFromConfig()
 		self._selectPresetInList()
@@ -432,9 +552,9 @@ class CedarSettingsPanel(SettingsPanel):
 			_("Cedar"), wx.YES_NO | wx.ICON_QUESTION, self,
 		) != wx.YES:
 			return
-		userPresets[name] = presets.captureCurrent()
+		userPresets[name] = presets.captureCurrent(self._conf())
 		presets.saveUserPresets(userPresets)
-		conf()["currentPreset"] = name
+		self._conf()["currentPreset"] = name
 		self.presetChoice.Set(self._presetChoices())
 		self._selectPresetInList()
 
@@ -451,7 +571,7 @@ class CedarSettingsPanel(SettingsPanel):
 			return
 		del userPresets[name]
 		presets.saveUserPresets(userPresets)
-		conf()["currentPreset"] = ""
+		self._conf()["currentPreset"] = ""
 		self.presetChoice.Set(self._presetChoices())
 		self._selectPresetInList()
 
@@ -461,7 +581,7 @@ class CedarSettingsPanel(SettingsPanel):
 		self._refreshEnabledStates()
 
 	def onAdvanced(self, evt):
-		with AdvancedDialog(self) as dialog:
+		with AdvancedDialog(self, self._synthName) as dialog:
 			dialog.ShowModal()
 		self._readGainsFromConfig()
 		self._selectPresetInList()
@@ -471,6 +591,7 @@ class CedarSettingsPanel(SettingsPanel):
 		c = conf()
 		c["enabled"] = self.enabledCheckBox.GetValue()
 		c["advancedMode"] = self.advancedCheckBox.GetValue()
+		c["processSounds"] = self.soundsCheckBox.GetValue()
 		equalizer.invalidate()
 
 	def onDiscard(self):

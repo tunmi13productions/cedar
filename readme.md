@@ -18,17 +18,20 @@ https://github.com/tunmi13productions/cedar/releases/latest/download/cedar.nvda-
 
 That link always gives you the newest build. Press enter on the downloaded file to install it, and restart NVDA when prompted.
 
-Cedar runs on NVDA 2024.1 through 2026.1. NVDA 2026.1 moved to 64 bit and to Python 3.13, which broke a great many add-ons, but Cedar ships no compiled code and uses no APIs that changed, so one build covers the whole range.
+Cedar runs on NVDA 2024.1 through 2026.3, including every 2025 release. NVDA 2026.1 moved to 64 bit and to Python 3.13, which broke a great many add-ons, but Cedar ships no compiled code and uses no APIs that changed in 2026.1, 2026.2 or 2026.3, so one build covers the whole range.
 
 ## Using Cedar
 
 Open NVDA menu, Preferences, Settings, and choose the Cedar equalizer category. The panel has:
+- Settings for, which chooses what the controls below edit: the shared settings, or one particular synthesizer. See Settings for each synthesizer below.
 - Enable the Cedar equalizer, which switches all processing on or off.
+- Give this synthesizer its own settings, where the checkbox names the synthesizer chosen under Settings for.
 - Preset, a list of ready made settings plus any you have saved yourself.
 - Show levels as, which chooses how every level in Cedar reads. 0 to 100 puts flat at 50 and is the default, matching how NVDA's own rate, pitch and volume already read. Decibels runs from -18 to 18 with 0 flat, if you would rather have the real units. It changes the display only, never the sound.
 - Bass, Mids and Treble, adjustable with the arrow keys or by typing a number.
 - Overall volume trim, which raises or lowers the whole speech level.
 - Prevent distortion from boosted bands, which quietly compensates for the level your boosts add. Leave this on unless you know you want the extra loudness.
+- Also equalize NVDA sounds and beeps, which extends the equalizer beyond speech.
 - Test voice, which speaks a sample sentence so you can judge a setting by ear.
 - Save as preset, Delete preset and Reset to flat.
 
@@ -42,6 +45,25 @@ To make your own, set the controls how you like them, press Save as preset, and 
 
 The presets were tuned by frequency reasoning rather than by ear against real voices, so treat them as starting points. Different synthesizers have quite different spectral balance, and you may want to move a band or two.
 
+## Settings for each synthesizer
+
+By default every synthesizer shares one set of equalizer settings. You can give any synthesizer its own copy instead, and Cedar switches to it by itself whenever that synthesizer becomes active. You do not have to switch synthesizers to set this up.
+
+The Settings for list at the top of the panel chooses what the rest of the panel edits. It starts on the synthesizer you are using, and lists:
+- Shared settings, used by every synthesizer that does not have its own.
+- Every installed synthesizer, marked own settings or uses shared settings. The one speaking now is also marked active. No speech is left out, since it makes no sound to equalize.
+- Any synthesizer that has its own settings but is no longer installed, so you can still remove them.
+
+Choose a synthesizer and tick Give this synthesizer its own settings, and it gets its own copy, starting from what it plays now. From then on, the bands, preset, volume trim and filters you change, including in the advanced dialog, apply only to that synthesizer. Untick it to put that synthesizer back on the shared settings. Choosing a synthesizer that uses the shared settings, without ticking the box, edits the shared settings.
+
+Some ways to use it:
+- To equalize only one synthesizer, leave the shared settings on Flat, choose that synthesizer, give it its own settings and adjust them. Every other synthesizer is left untouched.
+- To give each synthesizer its own preset, choose each one in turn, give it its own settings, and pick a preset.
+
+NVDA's speech, and the Test voice button, always use the synthesizer that is speaking now, so you only hear your changes straight away when you are editing the settings that synthesizer uses. Changes to another synthesizer are kept and take effect when you switch to it.
+
+Whether Cedar is on, how levels read, whether sounds are equalized and your saved presets are always shared. Settings are kept per synthesizer, not per voice, so every SAPI 5 voice shares one set. The commands for nudging bass, mids and treble and cycling presets always adjust whatever the speaking synthesizer is using.
+
 ## Advanced settings
 
 Tick Enable advanced settings and the Advanced settings button becomes available. The advanced dialog gives you:
@@ -50,7 +72,6 @@ Tick Enable advanced settings and the Advanced settings button becomes available
 - Remove low frequency rumble, for synthesizers with a heavy low end.
 - Remove high frequency hiss, for synthesizers with a harsh or noisy top end.
 - Soften loud peaks instead of clipping them, which rounds off peaks that would otherwise distort.
-- Also equalize NVDA sounds and beeps, which extends the equalizer beyond speech.
 
 ## Commands
 

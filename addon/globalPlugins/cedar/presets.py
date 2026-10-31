@@ -73,18 +73,18 @@ def isBuiltin(name):
 	return any(presetName == name for presetName, _values in BUILTIN_PRESETS)
 
 
-def captureCurrent():
+def captureCurrent(c=None):
 	"""Snapshot the settings a preset covers, so the user can save what they are hearing."""
-	c = conf()
+	c = conf() if c is None else c
 	return {key: c[key] for key in sorted(PRESET_KEYS)}
 
 
-def applyPreset(name):
+def applyPreset(name, c=None):
 	"""Write a preset into the config, resetting anything the preset does not mention."""
 	values = getPreset(name)
 	if values is None:
 		return False
-	c = conf()
+	c = conf() if c is None else c
 	c["preamp"] = 0.0
 	c["rumbleFilter"] = False
 	c["hissFilter"] = False

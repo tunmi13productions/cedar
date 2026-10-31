@@ -62,6 +62,7 @@ class CedarTestCase(unittest.TestCase):
 		c["autoGain"] = True
 		c["softClip"] = True
 		c["userPresets"] = ""
+		c["synthSettings"] = ""
 		engine.equalizer.invalidate()
 
 
@@ -438,6 +439,177 @@ class TestGlobalPlugin(CedarTestCase):
 		self.assertEqual(conf()["currentPreset"], names[1])
 		self.plugin.script_previousPreset(None)
 		self.assertEqual(conf()["currentPreset"], names[0])
+
+
+class FakeSynth:
+	def __init__(self, name, description=None):
+		self.name = name
+		self.description = description or name
+
+
+class TestPerSynth(CedarTestCase):
+	def setUp(self):
+		super().setUp()
+		import synthDriverHandler
+
+		self.synthDriverHandler = synthDriverHandler
+		conf()["synthSettings"] = ""
+		self.useSynth("espeak")
+		self.addCleanup(setattr, synthDriverHandler, "synth", None)
+		self.addCleanup(setattr, synthDriverHandler, "synthList", [])
+
+	def useSynth(self, name):
+		self.synthDriverHandler.synth = FakeSynth(name)
+		engine.equalizer.invalidate()
+
+	def test_synths_share_settings_by_default(self):
+		conf()["lowGain"] = 6.0
+		self.useSynth("oneCore")
+		self.assertEqual(conf()["lowGain"], 6.0)
+		self.assertFalse(engine.synthHasOwnSettings())
+
+	def test_own_settings_start_from_what_is_playing(self):
+		conf()["lowGain"] = 6.0
+		engine.setSynthHasOwnSettings(True)
+		self.assertTrue(engine.synthHasOwnSettings())
+		self.assertEqual(conf()["lowGain"], 6.0)
+
+	def test_own_settings_do_not_leak_to_other_synths(self):
+		engine.setSynthHasOwnSettings(True)
+		conf()["lowGain"] = 9.0
+		self.assertEqual(engine.rawConf()["lowGain"], 0.0)
+		self.useSynth("oneCore")
+		self.assertEqual(conf()["lowGain"], 0.0)
+		self.assertIsNone(engine.equalizer.getCascade(FS))
+		self.useSynth("espeak")
+		self.assertEqual(conf()["lowGain"], 9.0)
+		self.assertIsNotNone(engine.equalizer.getCascade(FS))
+
+	def test_only_one_synth_can_be_equalized(self):
+		"""The shared settings stay flat, so only the synth with its own settings is touched."""
+		engine.setSynthHasOwnSettings(True)
+		presets.applyPreset("Warm")
+		self.assertEqual(conf()["currentPreset"], "Warm")
+		self.useSynth("sapi5")
+		self.assertEqual(conf()["currentPreset"], "")
+		self.assertIsNone(engine.equalizer.getCascade(FS))
+
+	def test_global_settings_stay_shared(self):
+		engine.setSynthHasOwnSettings(True)
+		conf()["processSounds"] = True
+		conf()["enabled"] = False
+		self.useSynth("oneCore")
+		self.assertTrue(conf()["processSounds"])
+		self.assertFalse(conf()["enabled"])
+
+	def test_dropping_own_settings_goes_back_to_the_shared_ones(self):
+		conf()["midGain"] = 3.0
+		engine.setSynthHasOwnSettings(True)
+		conf()["midGain"] = 8.0
+		engine.setSynthHasOwnSettings(False)
+		self.assertFalse(engine.synthHasOwnSettings())
+		self.assertEqual(conf()["midGain"], 3.0)
+
+	def test_malformed_synth_settings_are_ignored(self):
+		conf()["synthSettings"] = "{not json"
+		self.assertEqual(engine.loadSynthSettings(), {})
+		conf()["synthSettings"] = '{"espeak": {"lowGain": "loud", "midGain": 2.0, "enabled": false}}'
+		self.assertEqual(engine.loadSynthSettings(), {"espeak": {"midGain": 2.0}})
+		self.assertEqual(conf()["lowGain"], 0.0)
+		self.assertEqual(conf()["midGain"], 2.0)
+		self.assertTrue(conf()["enabled"])
+
+	def test_no_synth_falls_back_to_the_shared_settings(self):
+		self.synthDriverHandler.synth = None
+		conf()["lowGain"] = 4.0
+		engine.setSynthHasOwnSettings(True)
+		self.assertEqual(engine.loadSynthSettings(), {})
+		self.assertEqual(engine.rawConf()["lowGain"], 4.0)
+
+	def test_switching_synths_rebuilds_the_cascade(self):
+		from cedar import GlobalPlugin
+
+		plugin = GlobalPlugin()
+		self.addCleanup(plugin.terminate)
+		engine.setSynthHasOwnSettings(True)
+		conf()["lowGain"] = 9.0
+		engine.equalizer.invalidate()
+		self.assertIsNotNone(engine.equalizer.getCascade(FS))
+		self.synthDriverHandler.synth = FakeSynth("oneCore")
+		self.synthDriverHandler.synthChanged.notify(synth=self.synthDriverHandler.synth)
+		self.assertIsNone(engine.equalizer.getCascade(FS))
+
+	def test_a_synth_can_be_edited_without_switching_to_it(self):
+		engine.setSynthHasOwnSettings(True, "oneCore")
+		other = conf("oneCore")
+		presets.applyPreset("Bright", other)
+		other["midGain"] = 4.0
+		self.assertEqual(conf()["highGain"], 0.0)
+		self.assertIsNone(engine.equalizer.getCascade(FS))
+		self.useSynth("oneCore")
+		self.assertEqual(conf()["highGain"], 6.0)
+		self.assertEqual(conf()["midGain"], 4.0)
+		self.assertEqual(conf()["currentPreset"], "Bright")
+
+	def test_editing_a_synth_without_its_own_settings_edits_the_shared_ones(self):
+		conf("oneCore")["lowGain"] = 5.0
+		self.assertEqual(engine.rawConf()["lowGain"], 5.0)
+		self.assertEqual(conf()["lowGain"], 5.0)
+
+	def test_the_shared_settings_can_be_edited_while_a_synth_has_its_own(self):
+		engine.setSynthHasOwnSettings(True)
+		resetToFlat(conf(None))
+		conf(None)["lowGain"] = 7.0
+		self.assertEqual(conf()["lowGain"], 0.0)
+		self.useSynth("oneCore")
+		self.assertEqual(conf()["lowGain"], 7.0)
+
+	def test_own_settings_for_another_synth_start_from_what_it_plays(self):
+		conf()["lowGain"] = 3.0
+		engine.setSynthHasOwnSettings(True)
+		conf()["lowGain"] = 9.0
+		engine.setSynthHasOwnSettings(True, "oneCore")
+		self.assertEqual(conf("oneCore")["lowGain"], 3.0)
+
+	def test_the_settings_for_list_covers_installed_and_orphaned_synths(self):
+		from cedar import settingsgui
+
+		self.synthDriverHandler.synthList = [("espeak", "eSpeak NG"), ("oneCore", "Windows OneCore voices")]
+		engine.setSynthHasOwnSettings(True, "removedSynth")
+		targets = settingsgui._synthTargets()
+		self.assertEqual(
+			[name for name, _description in targets], [None, "espeak", "oneCore", "removedSynth"]
+		)
+		labels = [settingsgui._targetLabel(name, description) for name, description in targets]
+		self.assertEqual(labels, [
+			"Shared settings",
+			"eSpeak NG, uses shared settings, active",
+			"Windows OneCore voices, uses shared settings",
+			"removedSynth, own settings",
+		])
+
+	def test_no_speech_is_not_a_synthesizer(self):
+		from cedar import settingsgui
+
+		self.synthDriverHandler.synthList = [("espeak", "eSpeak NG"), ("silence", "No speech")]
+		self.useSynth("silence")
+		self.assertIsNone(engine.activeSynthName())
+		self.assertEqual([name for name, _description in settingsgui._synthTargets()], [None, "espeak"])
+		engine.setSynthHasOwnSettings(True)
+		engine.setSynthHasOwnSettings(True, "silence")
+		self.assertEqual(engine.loadSynthSettings(), {})
+		conf()["synthSettings"] = '{"silence": {"lowGain": 3.0}}'
+		self.assertEqual(engine.loadSynthSettings(), {})
+
+	def test_band_scripts_adjust_the_active_synth_only(self):
+		from cedar import GlobalPlugin
+
+		plugin = GlobalPlugin()
+		self.addCleanup(plugin.terminate)
+		engine.setSynthHasOwnSettings(True)
+		plugin.script_bassUp(None)
+		self.assertEqual(conf()["lowGain"], 1.0)
+		self.assertEqual(engine.rawConf()["lowGain"], 0.0)
 
 
 class TestFilterSafety(unittest.TestCase):
