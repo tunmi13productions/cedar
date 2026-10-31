@@ -24,7 +24,7 @@ description = \"\"\"{addon_description}\"\"\"
 author = "{addon_author}"
 url = {addon_url}
 version = {addon_version}
-docFileName = {addon_docFileName}
+{changelogLine}docFileName = {addon_docFileName}
 minimumNVDAVersion = {addon_minimumNVDAVersion}
 lastTestedNVDAVersion = {addon_lastTestedNVDAVersion}
 updateChannel = {addon_updateChannel}
@@ -88,6 +88,11 @@ def writeManifest(path):
 	values = dict(addon_info)
 	values["addon_url"] = values["addon_url"] or "None"
 	values["addon_updateChannel"] = values["addon_updateChannel"] or "None"
+	changelog = values.get("addon_changelog")
+	if changelog and '"""' in changelog:
+		raise SystemExit("addon_changelog cannot contain triple quotes")
+	# Left out entirely when there is none, rather than written as the text None.
+	values["changelogLine"] = 'changelog = """%s"""\n' % changelog if changelog else ""
 	with open(path, "w", encoding="utf-8", newline="\n") as f:
 		f.write(MANIFEST_TEMPLATE.format(**values))
 

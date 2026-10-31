@@ -14,6 +14,14 @@ addon_info = {
 		"Expect oddities, and please report anything that behaves strangely."
 	),
 	"addon_version": "1.7",
+	# Translators: what changed in this version, shown in NVDA's add-on store.
+	"addon_changelog": (
+		"Any synthesizer can now have its own equalizer settings, used whenever it is active. "
+		"The new Settings for list edits the shared settings or any installed synthesizer "
+		"without switching to it. "
+		"Also equalize NVDA sounds and beeps has moved from the advanced dialog to the main panel. "
+		"Tested with NVDA 2026.3, and still supports every 2025 release."
+	),
 	"addon_author": "tunmi13 <tunmi12@mail.com>",
 	"addon_url": "https://github.com/tunmi13productions/cedar",
 	"addon_docFileName": "readme.html",
