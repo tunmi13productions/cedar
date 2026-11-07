@@ -13,12 +13,11 @@ addon_info = {
 		"Warning: this add-on was vibe coded with Claude Opus 5, Anthropic's AI model. "
 		"Expect oddities, and please report anything that behaves strangely."
 	),
-	"addon_version": "1.7.1",
+	"addon_version": "1.7.2",
 	# Translators: what changed in this version, shown in NVDA's add-on store.
 	"addon_changelog": (
-		"The add-on is now credited to tunmi13. "
-		"The add-on store can now show what changed in each version. "
-		"Nothing about how Cedar sounds or works has changed since 1.7."
+		"The download file is now named with its version, such as cedar-1.7.2.nvda-addon. "
+		"Nothing about how Cedar sounds or works has changed since 1.7.1."
 	),
 	"addon_author": "tunmi13 <tunmi12@mail.com>",
 	"addon_url": "https://github.com/tunmi13productions/cedar",
