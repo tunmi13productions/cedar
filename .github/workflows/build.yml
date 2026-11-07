@@ -36,16 +36,13 @@ jobs:
           fi
 
       - name: Build the add-on
-        run: |
-          python build.py
-          # A copy under a fixed name, so the download link never has to change.
-          cp cedar-*.nvda-addon cedar.nvda-addon
+        run: python build.py
 
       - name: Upload the build
         uses: actions/upload-artifact@v4
         with:
           name: cedar-addon
-          path: cedar*.nvda-addon
+          path: cedar-*.nvda-addon
 
       - name: Publish the version release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -63,7 +60,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "Cedar $version" \
             --notes-file notes.md \
-            "cedar-$version.nvda-addon" "cedar.nvda-addon"
+            "cedar-$version.nvda-addon"
 
       - name: Move the latest release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -72,11 +69,11 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           cat > latest-notes.md <<EOF
-          Download Cedar: $REPO_URL/releases/latest/download/cedar.nvda-addon
+          Download Cedar $version: $REPO_URL/releases/latest/download/cedar-$version.nvda-addon
 
           Press enter on the downloaded file to install it, then restart NVDA when prompted.
 
-          This is Cedar $version. The link above always points at the newest build, so it never has to change.
+          This page always holds the newest build: $REPO_URL/releases/latest
           EOF
           # Recreated rather than edited, so the latest tag follows the newest commit.
           gh release delete latest --yes --cleanup-tag || true
@@ -84,4 +81,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "Latest build" \
             --notes-file latest-notes.md \
-            cedar.nvda-addon
+            "cedar-$version.nvda-addon"

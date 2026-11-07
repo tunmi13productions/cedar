@@ -14,9 +14,9 @@ Cedar filters NVDA's speech audio on its way to your sound card, so if it goes w
 
 ## Download
 
-https://github.com/tunmi13productions/cedar/releases/latest/download/cedar.nvda-addon
+https://github.com/tunmi13productions/cedar/releases/latest
 
-That link always gives you the newest build. Press enter on the downloaded file to install it, and restart NVDA when prompted.
+That page always holds the newest build. Download the file named cedar followed by the version number, such as cedar-1.7.1.nvda-addon, press enter on it to install it, and restart NVDA when prompted.
 
 Cedar runs on NVDA 2024.1 through 2026.3, including every 2025 release. NVDA 2026.1 moved to 64 bit and to Python 3.13, which broke a great many add-ons, but Cedar ships no compiled code and uses no APIs that changed in 2026.1, 2026.2 or 2026.3, so one build covers the whole range.
 
